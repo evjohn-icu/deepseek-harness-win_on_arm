@@ -1,0 +1,91 @@
+name: Package Desktop · Windows · ARM64 (community)
+
+# Unofficial community build pipeline for the win-arm64 desktop target.
+# - workflow_dispatch: builds unsigned installers and uploads a run artifact.
+# - pushing a tag win-arm64-build-v*: builds and publishes a prerelease with the installer attached.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'win-arm64-build-v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: win-arm64-desktop-package
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: windows-11-arm
+    timeout-minutes: 180
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@v5.0.0
+
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+
+      - name: Locate pnpm store for caching
+        run: "PNPM_CONFIG_STORE_DIR=${{ runner.temp }}\\pnpm-store" >> $env:GITHUB_ENV
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}\\pnpm-store
+          key: win-arm64-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: win-arm64-pnpm-
+
+      - name: Write desktop packaging env
+        run: |
+          $lines = @(
+            'DSH_DESKTOP_APP_ID=com.deepseek.dsh',
+            'DSH_DESKTOP_AUTO_UPDATE_ENV=production',
+            'DSH_DESKTOP_MANDATORY_UPDATE_PROD_ORIGIN=https://harness.deepseek.com'
+          )
+          Set-Content -Path apps/desktop/.env.windows -Value $lines -Encoding utf8
+
+      - name: Install dependencies
+        run: |
+          pnpm install --frozen-lockfile
+          exit $LASTEXITCODE
+
+      - name: Package win-arm64 (unsigned)
+        run: |
+          pnpm run package:desktop:win:arm64:unsigned
+          exit $LASTEXITCODE
+
+      - name: Collect installer path
+        run: |
+          $dir = 'apps/desktop/.desktop-build/targets/win-arm64/unsigned-artifacts'
+          $exe = Get-ChildItem $dir -Filter 'deepseek-harness-*-win-arm64-unsigned.exe' |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if ($null -eq $exe) { throw 'win-arm64 installer not found after packaging' }
+          "installer_path=$($exe.FullName)" >> $env:GITHUB_ENV
+          "installer_name=$($exe.Name)" >> $env:GITHUB_ENV
+
+      - name: Upload run artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-arm64-unsigned-installer
+          path: ${{ env.installer_path }}
+          if-no-files-found: error
+
+      - name: Publish prerelease (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/win-arm64-build-v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" "$env:installer_path#$env:installer_name" `
+            --title "DeepSeek Harness win-arm64 $env:GITHUB_REF_NAME" `
+            --notes "Unofficial native ARM64 build of the DeepSeek Harness desktop app. Unsigned: SmartScreen may prompt on first run; automatic updates are disabled. See README.win-arm64.md for build details and known limitations." `
+            --prerelease
