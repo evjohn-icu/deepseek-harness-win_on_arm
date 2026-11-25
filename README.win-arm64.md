@@ -20,7 +20,8 @@ Prefer to build it yourself? See [Building it yourself](#building-it-yourself).
 ## What this branch changes
 
 The upstream packaging pipeline only ships `mac-arm64`, `mac-x64` and `win-x64`. This branch
-(16 files, one commit) adds the fourth target `win-arm64`:
+(16 files) adds the fourth target `win-arm64`; the patch is re-applied on top of each upstream
+release (current base: **0.2.3-alpha.2**):
 
 - **Target plumbing** — `desktop-build-paths`, `package-target`, `desktop-upload-plan`,
   `desktop-build-version-discovery` accept and map `win-arm64`; the host check requires any
@@ -29,7 +30,7 @@ The upstream packaging pipeline only ships `mac-arm64`, `mac-x64` and `win-x64`.
   `electron-builder-config` omits mandatory-update metadata from arm64 artifacts because the
   release service does not publish `x-client-arch: arm64` records.
 - **Primary runtime** — Node zip extraction and platform mapping handle every `win-*` target;
-  `lock.json` pins Node 24.21.0, CPython 3.12.14 (`install_only_stripped`,
+  `lock.json` pins Node 24.22.3 (arm64 zip, SHA-256), CPython 3.12.14 (`install_only_stripped`,
   python-build-standalone 20260901) and numpy/pandas/pillow/lxml `cp312 win_arm64` wheels
   with SHA-256. Note: the win-arm64 lock entry hashes the stripped CPython variant, so the
   cache-key/URL mismatch in the original kit is resolved by design here.
@@ -86,6 +87,8 @@ and the runtime prepare step downloads from nodejs.org, GitHub releases and pyth
 
 ## Verified
 
-Built and smoke-tested on a Snapdragon X Elite (X1E78100) host with Node 24.21.0 arm64:
-packaged-runtime smoke passes with native `koffi`, `sharp`, `node-pty`, `pnpm`, `ripgrep`, and
-the Office conversion skills (DOCX/XLSX/PPTX to PDF, rendering, recalculation) all pass.
+Built and smoke-tested on a Snapdragon X Elite (X1E78100) host with Node 24.22.3 arm64 and
+electron 44.11.5: packaged-runtime smoke passes with native `koffi`, `sharp`, `node-pty`, `pnpm`,
+`ripgrep`, plus the Office conversion skills (DOCX/XLSX/PPTX to PDF, rendering, recalculation).
+The same pipeline runs on GitHub's hosted `windows-11-arm` runner and is what publishes the
+releases. Packaging requires PowerShell 7 (`pwsh`) on PATH — the toolchain preflight checks it.
