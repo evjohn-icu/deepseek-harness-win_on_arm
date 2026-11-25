@@ -1,5 +1,11 @@
 # DeepSeek Harness
 
+> **This fork ships an unofficial native Windows ARM64 desktop build.**
+> Installer: [Releases](https://github.com/evjohn-icu/deepseek-harness-win_on_arm/releases) ·
+> Build details and limitations: [README.win-arm64.md](README.win-arm64.md).
+> Community port, not affiliated with or endorsed by DeepSeek; keep using
+> [upstream](https://github.com/deepseek-ai/deepseek-harness) for official builds.
+
 English | [中文](README.zh.md)
 
 DeepSeek Harness (`dsh`) is an open-source agent harness developed by [DeepSeek AI](https://deepseek.com).
