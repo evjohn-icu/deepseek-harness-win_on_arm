@@ -36,7 +36,8 @@ jobs:
           node-version: '24'
 
       - name: Locate pnpm store for caching
-        run: "PNPM_CONFIG_STORE_DIR=${{ runner.temp }}\\pnpm-store" >> $env:GITHUB_ENV
+        run: |
+          "PNPM_CONFIG_STORE_DIR=${{ runner.temp }}\pnpm-store" >> $env:GITHUB_ENV
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -85,7 +86,42 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$env:GITHUB_REF_NAME" "$env:installer_path#$env:installer_name" `
-            --title "DeepSeek Harness win-arm64 $env:GITHUB_REF_NAME" `
-            --notes "Unofficial native ARM64 build of the DeepSeek Harness desktop app. Unsigned: SmartScreen may prompt on first run; automatic updates are disabled. See README.win-arm64.md for build details and known limitations." `
-            --prerelease
+          $name = $env:installer_name
+          $match = [regex]::Match($name, '^deepseek-harness-(.+)-win-arm64-unsigned\.exe$')
+          if (-not $match.Success) { throw "unexpected installer name: $name" }
+          $version = $match.Groups[1].Value
+          $tag = $env:GITHUB_REF_NAME
+          $size = [math]::Round((Get-Item $env:installer_path).Length / 1MB)
+          $title = "DeepSeek Harness $version - Windows ARM64 (unofficial, unsigned)"
+          $notes = @(
+            "Unofficial **native Windows ARM64** build of the DeepSeek Harness desktop app ($version).",
+            '',
+            '### Install',
+            '',
+            "1. Download ``$name`` below (~$size MB, NSIS, per-user install).",
+            '2. Run it. The build is **unsigned**, so SmartScreen warns - choose *More info* then *Run anyway*.',
+            '3. Windows 11 on ARM64 is required; on x64 Windows use the official upstream build instead.',
+            '',
+            '### What is inside',
+            '',
+            '- Electron, Node, CPython and the native modules (`koffi`, `sharp`, `node-pty`, `ripgrep`, Office conversion) are all arm64 - no x64 emulation.',
+            '- The packaging run smoke-tests the packaged runtime and the Office document round trips before publishing.',
+            '',
+            'Voice input may be unavailable (`sherpa-onnx` ships no win-arm64 package); plugins bundling x64-only native binaries will not load. No automatic updates - install a newer prerelease over the top.',
+            '',
+            "Build details and limitations: https://github.com/$env:GITHUB_REPOSITORY/blob/master/README.win-arm64.md",
+            '',
+            'Community port - not affiliated with or endorsed by DeepSeek. Official builds: https://github.com/deepseek-ai/deepseek-harness'
+          ) -join "`n"
+          $notesFile = Join-Path $env:RUNNER_TEMP 'win-arm64-release-notes.md'
+          Set-Content -Path $notesFile -Value $notes -Encoding utf8
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --title $title --notes-file $notesFile
+            gh release upload $tag "$($env:installer_path)#$name" --repo $env:GITHUB_REPOSITORY --clobber
+          }
+          else {
+            gh release create $tag "$($env:installer_path)#$name" --repo $env:GITHUB_REPOSITORY `
+              --title $title --notes-file $notesFile --prerelease
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'release publication failed' }
