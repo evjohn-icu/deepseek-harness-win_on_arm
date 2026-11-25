@@ -17,6 +17,13 @@ concurrency:
   group: win-arm64-desktop-package
   cancel-in-progress: true
 
+# The packaged CPython loads extension modules (lxml) from
+# <root>\apps\desktop\.desktop-build\targets\win-arm64\unsigned-artifacts\...
+# A checkout under the default C:\a\<repo>\<repo> root pushes those paths past
+# MAX_PATH on Windows, so the build runs from a short root instead.
+env:
+  BUILD_ROOT: C:\w
+
 jobs:
   package:
     runs-on: windows-11-arm
@@ -24,12 +31,28 @@ jobs:
     defaults:
       run:
         shell: pwsh
+        working-directory: C:\w
     steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
+      - name: Enable Win32 long paths
+        working-directory: ${{ github.workspace }}
+        run: |
+          New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' `
+            -Name LongPathsEnabled -Value 1 -PropertyType DWord -Force | Out-Null
+
+      - name: Check out into a short workspace
+        working-directory: ${{ github.workspace }}
+        run: |
+          if (Test-Path $env:BUILD_ROOT) { Remove-Item $env:BUILD_ROOT -Recurse -Force }
+          git clone --depth 1 --branch $env:GITHUB_REF_NAME "https://github.com/$env:GITHUB_REPOSITORY.git" $env:BUILD_ROOT
+          if ($LASTEXITCODE -ne 0) { throw 'short-workspace clone failed' }
+          git -C $env:BUILD_ROOT log --oneline -1
+          if ($LASTEXITCODE -ne 0) { throw 'short-workspace clone is not readable' }
 
       - uses: pnpm/action-setup@v5.0.0
+        with:
+          # No checkout at the default workspace root, so the action cannot read
+          # the packageManager field; keep this in step with package.json.
+          version: 11.28.5
 
       - uses: actions/setup-node@v7.0.0
         with:
@@ -38,12 +61,13 @@ jobs:
       - name: Locate pnpm store for caching
         run: |
           "PNPM_CONFIG_STORE_DIR=${{ runner.temp }}\pnpm-store" >> $env:GITHUB_ENV
+          "LOCK_HASH=$((Get-FileHash pnpm-lock.yaml -Algorithm SHA256).Hash.Substring(0, 16))" >> $env:GITHUB_ENV
 
       - name: Cache pnpm store
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}\\pnpm-store
-          key: win-arm64-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: win-arm64-pnpm-${{ env.LOCK_HASH }}
           restore-keys: win-arm64-pnpm-
 
       - name: Write desktop packaging env

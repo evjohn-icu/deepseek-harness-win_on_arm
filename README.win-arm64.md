@@ -76,6 +76,11 @@ and the runtime prepare step downloads from nodejs.org, GitHub releases and pyth
 - `workflow_dispatch` — artifacts attached to the run.
 - pushing a tag `win-arm64-build-v*` — publishes a prerelease with the installer.
 
+The job clones into `C:\w` instead of the default `C:\a\<repo>\<repo>` workspace: the packaged
+CPython loads extension modules (`lxml`) out of the unpacked app, and the default root pushes
+those paths past Win32 `MAX_PATH` (`ImportError: DLL load failed ... The filename or extension is
+too long`). A short root keeps the whole build tree well under the limit.
+
 ## Known limitations
 
 - **Unsigned** — SmartScreen prompts on first run; no automatic update feed.
