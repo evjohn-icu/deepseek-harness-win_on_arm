@@ -5,6 +5,18 @@
 > with or endorsed by DeepSeek. The upstream project is MIT-licensed; this port keeps its LICENSE.
 > Official downloads remain at the upstream repository (macOS arm64 / macOS x64 / Windows x64).
 
+## Download
+
+Grab the installer from the [latest prerelease](https://github.com/evjohn-icu/deepseek-harness-win_on_arm/releases/latest):
+
+`deepseek-harness-<version>-win-arm64-unsigned.exe` (~285 MB, NSIS, per-user install).
+
+It is **unsigned**: Windows SmartScreen will warn ("More info" → "Run anyway"), and the app has no
+automatic-update feed. Everything the official Windows build does is expected to work; see
+[Known limitations](#known-limitations).
+
+Prefer to build it yourself? See [Building it yourself](#building-it-yourself).
+
 ## What this branch changes
 
 The upstream packaging pipeline only ships `mac-arm64`, `mac-x64` and `win-x64`. This branch
